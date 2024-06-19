@@ -1,0 +1,129 @@
+A.Croma India product wise sales report Fiscal year - 2021
+
+	SELECT 
+    	    s.date, 
+            s.product_code, 
+            p.product, 
+            p.variant, 
+            s.sold_quantity, 
+            g.gross_price,
+            ROUND(s.sold_quantity*g.gross_price,2) as gross_price_total
+	FROM fact_sales_monthly s
+	JOIN dim_product p
+            ON s.product_code=p.product_code
+	JOIN fact_gross_price g
+            ON g.fiscal_year=get_fiscal_year(s.date)
+    	AND g.product_code=s.product_code
+	WHERE 
+    	    customer_code=90002002 AND 
+            get_fiscal_year(s.date)=2021     
+	LIMIT 1000000;
+
+B. Yearly Gross sales report for Croma India 
+
+	SELECT
+            g.fiscal_year,
+            ROUND(SUM(s.sold_quantity*g.gross_price)/1000000,2)) as "gross_price_total(in mln)"	
+	from fact_sales_monthly s
+	join fact_gross_price g
+	on 
+	    g.fiscal_year=get_fiscal_year(s.date) and
+	    g.product_code=s.product_code
+	where
+	    customer_code=90002002
+	group by g.fiscal_year
+
+C. Top markets and customers for a financial year “2021”
+
+	SELECT 
+    	    market, 
+            round(sum(net_sales)/1000000,2) as net_sales_mln
+	FROM gdb0041.net_sales
+	where fiscal_year=2021
+	group by market
+	order by net_sales_mln desc
+	limit 5
+
+D. Net Sales % share by customers
+
+	with cte1 as (
+		select 
+                    customer, 
+                    round(sum(net_sales)/1000000,2) as net_sales_mln
+        	from net_sales s
+        	join dim_customer c
+                    on s.customer_code=c.customer_code
+        	where s.fiscal_year=2021
+        	group by customer)
+	select 
+            *,
+            net_sales_mln*100/sum(net_sales_mln) over() as pct_net_sales
+	from cte1
+	order by net_sales_mln desc
+
+E. Net Sales % share by Region - “APAC”
+
+	with cte1 as (
+		select 
+                    c.customer,
+		    c.region, 
+                    round(sum(net_sales)/1000000,2) as net_sales_mln
+        	from gdb0041.net_sales n
+        	join dim_customer c
+                    on n.customer_code=c.customer_code
+        	where fiscal_year=2021
+        	group by c.customer, c.region )
+	select 
+            *,
+            net_sales_mln*100/sum(net_sales_mln) over() as pct_share_region
+
+F. Supply Chain - Forecast Quantity
+
+	with forecast_err_table as (
+             select
+                  s.customer_code as customer_code,
+                  c.customer as customer_name,
+                  c.market as market,
+                  sum(s.sold_quantity) as total_sold_qty,
+                  sum(s.forecast_quantity) as total_forecast_qty,
+                  sum(s.forecast_quantity-s.sold_quantity) as net_error,
+                  round(sum(s.forecast_quantity-s.sold_quantity)*100/sum(s.forecast_quantity),1) as net_error_pct,
+                  sum(abs(s.forecast_quantity-s.sold_quantity)) as abs_error,
+                  round(sum(abs(s.forecast_quantity-sold_quantity))*100/sum(s.forecast_quantity),2) as abs_error_pct
+             from fact_act_est s
+             join dim_customer c
+             on s.customer_code = c.customer_code
+             where s.fiscal_year=2021
+             group by customer_code
+	)
+	select 
+            *,
+            if (abs_error_pct > 100, 0, 100.0 - abs_error_pct) as forecast_accuracy
+	from forecast_err_table
+        order by forecast_accuracy desc;
+
+	
+	
+
+
+	
+ 
+	
+
+
+ 
+
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
